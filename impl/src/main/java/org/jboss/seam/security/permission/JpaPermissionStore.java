@@ -20,6 +20,9 @@ import javax.persistence.Query;
 import org.jboss.solder.logging.Logger;
 import org.jboss.seam.security.annotations.permission.PermissionProperty;
 import org.jboss.seam.security.annotations.permission.PermissionPropertyType;
+import org.jboss.seam.security.management.picketlink.EntityToSpiConverter;
+import org.jboss.seam.security.management.picketlink.JpaIdentityStore;
+import org.jboss.seam.security.management.picketlink.JpaIdentityStoreConfiguration;
 import org.jboss.seam.security.permission.PermissionMetadata.ActionSet;
 import org.jboss.solder.properties.Property;
 import org.jboss.solder.properties.query.PropertyCriteria;
@@ -166,10 +169,9 @@ public class JpaPermissionStore implements PermissionStore, Serializable {
 
         if (!queryCache.containsKey(queryKey)) {
             boolean conditionsAdded = false;
-
             StringBuilder q = new StringBuilder();
             q.append("select p from ");
-            q.append(identityPermissionClass.getName());
+            q.append(identityPermissionClass.getSimpleName());
             q.append(" p");
 
             if (target != null) {
@@ -361,8 +363,12 @@ public class JpaPermissionStore implements PermissionStore, Serializable {
      */
     protected Object resolveIdentityEntity(IdentityObject identity) {
         // TODO implement this method (we already know the identity's entity class)
-
-        return identity.getName();
+        // return findIdentityObject(
+        
+        Query query = lookupEntityManager().createQuery("select i from IdentityObject i where i.name = :identityName");
+        query.setParameter("identityName", identity.getName());
+        
+        return query.getSingleResult();
     }
 
     /**
@@ -422,9 +428,10 @@ public class JpaPermissionStore implements PermissionStore, Serializable {
                 //    actionProperty.getValue(permission).toString());
             }
 
-            if (resource != null && (action == null || (actionSet != null && actionSet.contains(action)))) {
+            if (resource != null /* && (action == null || (actionSet != null && actionSet.contains(action)))*/) {
                 // FIXME
-                IdentityObject identity = null; //lookupPrincipal(principalCache, permission);
+                EntityToSpiConverter converter = getEntityToSpiConverter();
+                IdentityObject identity = converter.convertToIdentityObject(identityProperty.getValue(permission)); //lookupPrincipal(principalCache, permission);
 
                 if (action != null) {
                     permissions.add(new Permission(resource, action, identity));
@@ -472,5 +479,20 @@ public class JpaPermissionStore implements PermissionStore, Serializable {
 
     public boolean isEnabled() {
         return enabled;
+    }
+    
+    @Inject
+    JpaIdentityStoreConfiguration configuration;
+    
+    public EntityToSpiConverter getEntityToSpiConverter() {
+        EntityToSpiConverter converter = new EntityToSpiConverter();
+        converter.setIdentityClass(configuration.getIdentityClass());
+        converter.setModelProperties(configuration.getIdentityModelProperties());
+//        converter.setIdentityIdProperty(modelProperties.get(JpaIdentityStoreConfiguration.PROPERTY_IDENTITY_ID));
+//        converter.setIdentityNameProperty(modelProperties.get(PROPERTY_IDENTITY_NAME));
+//        converter.setIdentityTypeProperty(modelProperties.get(PROPERTY_IDENTITY_TYPE));
+//        converter.setIdentityTypeNameProperty(modelProperties.get(PROPERTY_IDENTITY_TYPE_NAME));
+//        converter.setRelationshipTypeNameProperty(modelProperties.get(PROPERTY_RELATIONSHIP_TYPE_NAME));
+        return converter;
     }
 }
